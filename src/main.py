@@ -23,7 +23,7 @@ class ZenFocusApp(ctk.CTk):
         self.resizable(False, False)
         self.configure(fg_color=config.COLOR_BACKGROUND)
 
-        # Configuración de la cuadrícula principal (Añadimos la fila 5 para la nueva etiqueta)
+        # Configuración de la cuadrícula principal
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure((0, 1, 2, 3, 4, 5), weight=1)
 
@@ -51,7 +51,7 @@ class ZenFocusApp(ctk.CTk):
             self, 
             text="ZenFocus", 
             font=("Roboto", 24, "bold"),
-            text_color=config.COLOR_PRIMARY
+            text_color=config.COLOR_TEXT_MAIN
         )
         self.label_titulo.grid(row=0, column=0, pady=(20, 0))
 
@@ -62,19 +62,20 @@ class ZenFocusApp(ctk.CTk):
             width=90,
             height=30,
             corner_radius=15,
-            fg_color="#1e1e1e",
-            hover_color="#333333",
+            fg_color=config.COLOR_FRAME,
+            hover_color=config.COLOR_PRIMARY_HOVER,
+            text_color=config.COLOR_TEXT_MAIN,
             font=("Roboto", 12),
             command=self.toggle_menu
         )
         self.btn_abrir_menu.place(x=340, y=20)
 
-        # NUEVO: Etiqueta de Modo Actual
+        # Etiqueta de Modo Actual
         self.label_tipo_reloj = ctk.CTkLabel(
             self,
             text="Modo: Tradicional",
             font=("Roboto", 12),
-            text_color="gray"
+            text_color=config.COLOR_TEXT_MUTED
         )
         self.label_tipo_reloj.grid(row=1, column=0, pady=(0, 10))
 
@@ -84,14 +85,21 @@ class ZenFocusApp(ctk.CTk):
             values=["Enfoque", "Descanso"],
             command=self.cambiar_modo,
             selected_color=config.COLOR_PRIMARY,
-            selected_hover_color="#155a8a",
+            selected_hover_color=config.COLOR_PRIMARY_HOVER,
+            unselected_color=config.COLOR_FRAME,
+            unselected_hover_color=config.COLOR_BACKGROUND,
             font=("Roboto", 14)
         )
         self.selector_modo.set("Enfoque")
         self.selector_modo.grid(row=2, column=0, pady=10)
 
         # 3. COMPONENTE: Breathing Halo
-        self.halo = BreathingHalo(self, bg_color=config.COLOR_BACKGROUND)
+        self.halo = BreathingHalo(
+            self, 
+            bg_color=config.COLOR_BACKGROUND,
+            progress_color=config.COLOR_PRIMARY,
+            track_color=config.COLOR_TRACK
+        )
         self.halo.grid(row=3, column=0, pady=20)
 
         # 4. Botón Iniciar
@@ -100,7 +108,8 @@ class ZenFocusApp(ctk.CTk):
             text="Iniciar",
             command=self.toggle_timer,
             fg_color=config.COLOR_PRIMARY,
-            hover_color="#155a8a",
+            hover_color=config.COLOR_PRIMARY_HOVER,
+            text_color=config.COLOR_TEXT_MAIN,
             width=140,
             height=40,
             corner_radius=20,
@@ -115,9 +124,9 @@ class ZenFocusApp(ctk.CTk):
             command=self.reset_timer,
             fg_color="transparent",
             border_width=2,
-            border_color=config.COLOR_ACCENT,
-            text_color=config.COLOR_ACCENT,
-            hover_color=config.COLOR_BACKGROUND,
+            border_color=config.COLOR_TEXT_MUTED,
+            text_color=config.COLOR_TEXT_MUTED,
+            hover_color=config.COLOR_FRAME,
             width=140,
             height=40,
             corner_radius=20,
@@ -126,24 +135,28 @@ class ZenFocusApp(ctk.CTk):
         self.boton_reset.grid(row=5, column=0, pady=(0, 20))
 
     def crear_menu_lateral(self):
-        # Aumentamos el ancho a 280px para acomodar mejor las pestañas
         self.ancho_menu = 280
-        self.sidebar = ctk.CTkFrame(self, width=self.ancho_menu, height=650, corner_radius=0, fg_color="#171717")
+        self.sidebar = ctk.CTkFrame(self, width=self.ancho_menu, height=650, corner_radius=0, fg_color=config.COLOR_FRAME)
         self.sidebar.place(x=self.menu_x, y=0) 
 
         # Título y botón cerrar
-        self.label_sidebar = ctk.CTkLabel(self.sidebar, text="Ajustes", font=("Roboto", 18, "bold"))
+        self.label_sidebar = ctk.CTkLabel(self.sidebar, text="Ajustes", font=("Roboto", 18, "bold"), text_color=config.COLOR_TEXT_MAIN)
         self.label_sidebar.place(x=20, y=15)
 
         self.btn_cerrar = ctk.CTkButton(
             self.sidebar, text="✖", width=30, height=30, 
-            fg_color="transparent", hover_color="#333333", 
-            text_color="gray", command=self.toggle_menu
+            fg_color="transparent", hover_color=config.COLOR_BACKGROUND, 
+            text_color=config.COLOR_TEXT_MUTED, command=self.toggle_menu
         )
         self.btn_cerrar.place(x=self.ancho_menu - 40, y=15)
 
         # --- SISTEMA DE PESTAÑAS ---
-        self.tabview = ctk.CTkTabview(self.sidebar, width=260, height=580, fg_color="transparent")
+        self.tabview = ctk.CTkTabview(
+            self.sidebar, width=260, height=580, 
+            fg_color="transparent", 
+            segmented_button_selected_color=config.COLOR_PRIMARY,
+            segmented_button_selected_hover_color=config.COLOR_PRIMARY_HOVER
+        )
         self.tabview.place(x=10, y=50)
 
         self.tabview.add("🎵 Sonidos")
@@ -155,7 +168,9 @@ class ZenFocusApp(ctk.CTk):
 
         rb_ninguno = ctk.CTkRadioButton(
             self.scroll_sonidos, text="Silencio", variable=self.sonido_var, 
-            value="Sin sonidos", font=("Roboto", 13), command=self.cambiar_sonido_vivo
+            value="Sin sonidos", font=("Roboto", 13), 
+            text_color=config.COLOR_TEXT_MAIN, fg_color=config.COLOR_PRIMARY,
+            command=self.cambiar_sonido_vivo
         )
         rb_ninguno.pack(pady=10, padx=5, anchor="w")
 
@@ -169,7 +184,9 @@ class ZenFocusApp(ctk.CTk):
                 nombre_limpio = os.path.splitext(archivo)[0].replace("-", " ").capitalize()
                 rb = ctk.CTkRadioButton(
                     self.scroll_sonidos, text=nombre_limpio, variable=self.sonido_var, 
-                    value=archivo, font=("Roboto", 13), command=self.cambiar_sonido_vivo
+                    value=archivo, font=("Roboto", 13), 
+                    text_color=config.COLOR_TEXT_MAIN, fg_color=config.COLOR_PRIMARY,
+                    command=self.cambiar_sonido_vivo
                 )
                 rb.pack(pady=10, padx=5, anchor="w")
         except Exception as e:
@@ -182,7 +199,9 @@ class ZenFocusApp(ctk.CTk):
             tab_pomo,
             values=["Tradicional", "Personalizado"],
             command=self.cambiar_vista_pomodoro,
-            selected_color=config.COLOR_PRIMARY
+            selected_color=config.COLOR_PRIMARY,
+            selected_hover_color=config.COLOR_PRIMARY_HOVER,
+            unselected_color=config.COLOR_BACKGROUND
         )
         self.selector_tipo_pomo.set("Tradicional")
         self.selector_tipo_pomo.pack(fill="x", pady=(10, 20), padx=5)
@@ -194,47 +213,42 @@ class ZenFocusApp(ctk.CTk):
         self.construir_vista_tradicional()
 
     def construir_vista_tradicional(self):
-        # Limpiar el frame dinámico
         for widget in self.frame_pomo_dinamico.winfo_children():
             widget.destroy()
             
         lbl_info = ctk.CTkLabel(
             self.frame_pomo_dinamico, 
             text="El método clásico para máxima\nproductividad apoyado por la ciencia.", 
-            text_color="gray", font=("Roboto", 12)
+            text_color=config.COLOR_TEXT_MUTED, font=("Roboto", 12)
         )
         lbl_info.pack(pady=(0, 20))
 
-        # Indicadores visuales
-        ctk.CTkLabel(self.frame_pomo_dinamico, text="🍅 Enfoque: 25 minutos", font=("Roboto", 14, "bold")).pack(pady=5)
-        ctk.CTkLabel(self.frame_pomo_dinamico, text="☕ Descanso: 5 minutos", font=("Roboto", 14, "bold")).pack(pady=5)
+        ctk.CTkLabel(self.frame_pomo_dinamico, text="🍅 Enfoque: 25 minutos", font=("Roboto", 14, "bold"), text_color=config.COLOR_TEXT_MAIN).pack(pady=5)
+        ctk.CTkLabel(self.frame_pomo_dinamico, text="☕ Descanso: 5 minutos", font=("Roboto", 14, "bold"), text_color=config.COLOR_TEXT_MAIN).pack(pady=5)
 
         btn_aplicar = ctk.CTkButton(
             self.frame_pomo_dinamico, text="Aplicar Tradicional", 
             command=lambda: self.aplicar_tiempos(25, 5, "Tradicional"),
-            fg_color=config.COLOR_PRIMARY
+            fg_color=config.COLOR_PRIMARY, hover_color=config.COLOR_PRIMARY_HOVER
         )
         btn_aplicar.pack(pady=30)
 
     def construir_vista_personalizada(self):
-        # Limpiar el frame dinámico
         for widget in self.frame_pomo_dinamico.winfo_children():
             widget.destroy()
 
-        # Input Enfoque
-        ctk.CTkLabel(self.frame_pomo_dinamico, text="Minutos de Enfoque:", font=("Roboto", 13)).pack(anchor="w", padx=10)
-        self.entry_enfoque = ctk.CTkEntry(self.frame_pomo_dinamico, placeholder_text="Ej: 45")
+        ctk.CTkLabel(self.frame_pomo_dinamico, text="Minutos de Enfoque:", font=("Roboto", 13), text_color=config.COLOR_TEXT_MAIN).pack(anchor="w", padx=10)
+        self.entry_enfoque = ctk.CTkEntry(self.frame_pomo_dinamico, placeholder_text="Ej: 45", fg_color=config.COLOR_BACKGROUND, border_color=config.COLOR_TEXT_MUTED)
         self.entry_enfoque.pack(fill="x", padx=10, pady=(0, 15))
 
-        # Input Descanso
-        ctk.CTkLabel(self.frame_pomo_dinamico, text="Minutos de Descanso:", font=("Roboto", 13)).pack(anchor="w", padx=10)
-        self.entry_descanso = ctk.CTkEntry(self.frame_pomo_dinamico, placeholder_text="Ej: 10")
+        ctk.CTkLabel(self.frame_pomo_dinamico, text="Minutos de Descanso:", font=("Roboto", 13), text_color=config.COLOR_TEXT_MAIN).pack(anchor="w", padx=10)
+        self.entry_descanso = ctk.CTkEntry(self.frame_pomo_dinamico, placeholder_text="Ej: 10", fg_color=config.COLOR_BACKGROUND, border_color=config.COLOR_TEXT_MUTED)
         self.entry_descanso.pack(fill="x", padx=10, pady=(0, 20))
 
         btn_guardar = ctk.CTkButton(
             self.frame_pomo_dinamico, text="Guardar y Aplicar", 
             command=self.validar_y_aplicar_personalizado,
-            fg_color=config.COLOR_PRIMARY
+            fg_color=config.COLOR_PRIMARY, hover_color=config.COLOR_PRIMARY_HOVER
         )
         btn_guardar.pack(pady=10)
 
@@ -257,36 +271,27 @@ class ZenFocusApp(ctk.CTk):
             print("Por favor, ingresa números válidos")
 
     def aplicar_tiempos(self, min_enfoque, min_descanso, tipo_reloj):
-        # Sobrescribimos la configuración actual en memoria
         config.POMODORO_TIME = min_enfoque * 60
         config.SHORT_BREAK = min_descanso * 60
-        
-        # ACTUALIZAR EL TEXTO EN LA INTERFAZ
         self.label_tipo_reloj.configure(text=f"Modo: {tipo_reloj}")
-
-        # Reiniciamos el reloj para que refleje los cambios inmediatamente
         self.reset_timer()
         self.toggle_menu() 
 
     # --- ANIMACIÓN DEL MENÚ LATERAL ---
     def toggle_menu(self):
-        # Nos aseguramos de que el menú siempre se dibuje por encima del resto
         self.sidebar.lift()
-        
         if self.menu_abierto:
-            self.animar_menu(450) # Lo esconde fuera de la ventana
+            self.animar_menu(450)
         else:
-            self.animar_menu(170) # Considera el nuevo ancho (450 - 280 = 170)
+            self.animar_menu(170)
         self.menu_abierto = not self.menu_abierto
 
     def animar_menu(self, target_x):
-        step = 15 # Velocidad de animación
-        
+        step = 15 
         if self.menu_x > target_x:
             self.menu_x = max(self.menu_x - step, target_x)
             self.sidebar.place(x=self.menu_x, y=0)
             self.after(10, lambda: self.animar_menu(target_x))
-            
         elif self.menu_x < target_x:
             self.menu_x = min(self.menu_x + step, target_x)
             self.sidebar.place(x=self.menu_x, y=0)
@@ -295,7 +300,6 @@ class ZenFocusApp(ctk.CTk):
     # --- MÉTODOS DE AUDIO ---
     def reproducir_sonido(self):
         sonido_elegido = self.sonido_var.get()
-        
         if sonido_elegido != "Sin sonidos":
             archivo_sonido = os.path.join(config.SOUNDS_DIR, sonido_elegido) 
             if os.path.exists(archivo_sonido):
@@ -310,7 +314,6 @@ class ZenFocusApp(ctk.CTk):
             pygame.mixer.music.stop()
 
     def cambiar_sonido_vivo(self):
-        """Permite cambiar el sonido en tiempo real si el temporizador está corriendo"""
         if self.timer_running and self.selector_modo.get() == "Enfoque":
             self.detener_sonido()
             self.reproducir_sonido()
@@ -331,10 +334,8 @@ class ZenFocusApp(ctk.CTk):
             self.timer_running = True
             self.boton_start.configure(text="Pausar")
             self.halo.start_breathing()
-            
             if self.selector_modo.get() == "Enfoque":
                 self.reproducir_sonido()
-                
             self.contar()
 
     def contar(self):
@@ -365,16 +366,17 @@ class ZenFocusApp(ctk.CTk):
         if modo_actual == "Enfoque":
             self.time_left = config.POMODORO_TIME
             nuevo_color = config.COLOR_PRIMARY
-            self.boton_start.configure(fg_color=config.COLOR_PRIMARY, hover_color="#155a8a")
-            self.selector_modo.configure(selected_color=config.COLOR_PRIMARY, selected_hover_color="#155a8a")
+            hover_color = config.COLOR_PRIMARY_HOVER
+            self.selector_modo.configure(selected_color=nuevo_color, selected_hover_color=hover_color)
         else:
             self.time_left = config.SHORT_BREAK
-            nuevo_color = "#4CAF50"
-            self.boton_start.configure(fg_color=nuevo_color, hover_color="#388E3C")
-            self.selector_modo.configure(selected_color=nuevo_color, selected_hover_color="#388E3C")
+            nuevo_color = config.COLOR_ACCENT
+            hover_color = config.COLOR_ACCENT_HOVER
+            self.selector_modo.configure(selected_color=nuevo_color, selected_hover_color=hover_color)
             
         self.total_time = self.time_left
-        self.boton_start.configure(text="Iniciar")
+        self.boton_start.configure(text="Iniciar", fg_color=nuevo_color, hover_color=hover_color)
+        self.boton_reset.configure(border_color=nuevo_color, text_color=nuevo_color)
         
         self.halo.set_color(nuevo_color)
         self.actualizar_reloj()
@@ -390,6 +392,6 @@ class ZenFocusApp(ctk.CTk):
         self.halo.draw(progreso, texto)
 
 if __name__ == "__main__":
-    ctk.set_appearance_mode("Dark")
+    ctk.set_appearance_mode("Dark") # Obligamos el modo oscuro formal
     app = ZenFocusApp()
     app.mainloop()
