@@ -23,9 +23,9 @@ class ZenFocusApp(ctk.CTk):
         self.resizable(False, False)
         self.configure(fg_color=config.COLOR_BACKGROUND)
 
-        # Configuración de la cuadrícula principal
+        # Configuración de la cuadrícula principal (Añadimos la fila 5 para la nueva etiqueta)
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure((0, 1, 2, 3, 4), weight=1)
+        self.grid_rowconfigure((0, 1, 2, 3, 4, 5), weight=1)
 
         # --- Variables de Estado ---
         self.time_left = config.POMODORO_TIME
@@ -53,12 +53,12 @@ class ZenFocusApp(ctk.CTk):
             font=("Roboto", 24, "bold"),
             text_color=config.COLOR_PRIMARY
         )
-        self.label_titulo.grid(row=0, column=0, pady=(20, 10))
+        self.label_titulo.grid(row=0, column=0, pady=(20, 0))
 
         # Botón para abrir el menú (esquina superior derecha)
         self.btn_abrir_menu = ctk.CTkButton(
             self,
-            text="🎵 Sonidos",
+            text="⚙️ Ajustes",
             width=90,
             height=30,
             corner_radius=15,
@@ -68,6 +68,15 @@ class ZenFocusApp(ctk.CTk):
             command=self.toggle_menu
         )
         self.btn_abrir_menu.place(x=340, y=20)
+
+        # NUEVO: Etiqueta de Modo Actual
+        self.label_tipo_reloj = ctk.CTkLabel(
+            self,
+            text="Modo: Tradicional",
+            font=("Roboto", 12),
+            text_color="gray"
+        )
+        self.label_tipo_reloj.grid(row=1, column=0, pady=(0, 10))
 
         # 2. Selector de Modo
         self.selector_modo = ctk.CTkSegmentedButton(
@@ -79,11 +88,11 @@ class ZenFocusApp(ctk.CTk):
             font=("Roboto", 14)
         )
         self.selector_modo.set("Enfoque")
-        self.selector_modo.grid(row=1, column=0, pady=10)
+        self.selector_modo.grid(row=2, column=0, pady=10)
 
         # 3. COMPONENTE: Breathing Halo
         self.halo = BreathingHalo(self, bg_color=config.COLOR_BACKGROUND)
-        self.halo.grid(row=2, column=0, pady=20)
+        self.halo.grid(row=3, column=0, pady=20)
 
         # 4. Botón Iniciar
         self.boton_start = ctk.CTkButton(
@@ -97,7 +106,7 @@ class ZenFocusApp(ctk.CTk):
             corner_radius=20,
             font=("Roboto", 16, "bold")
         )
-        self.boton_start.grid(row=3, column=0, pady=10)
+        self.boton_start.grid(row=4, column=0, pady=10)
 
         # 5. Botón Reiniciar
         self.boton_reset = ctk.CTkButton(
@@ -114,53 +123,150 @@ class ZenFocusApp(ctk.CTk):
             corner_radius=20,
             font=("Roboto", 14)
         )
-        self.boton_reset.grid(row=4, column=0, pady=(0, 20))
+        self.boton_reset.grid(row=5, column=0, pady=(0, 20))
 
     def crear_menu_lateral(self):
-        # Frame del menú (ancho 220px). Se ubica fuera de la ventana usando self.menu_x
-        self.sidebar = ctk.CTkFrame(self, width=220, height=650, corner_radius=0, fg_color="#171717")
+        # Aumentamos el ancho a 280px para acomodar mejor las pestañas
+        self.ancho_menu = 280
+        self.sidebar = ctk.CTkFrame(self, width=self.ancho_menu, height=650, corner_radius=0, fg_color="#171717")
         self.sidebar.place(x=self.menu_x, y=0) 
 
-        # Título del menú y botón cerrar
-        self.label_sidebar = ctk.CTkLabel(self.sidebar, text="Ambiente", font=("Roboto", 18, "bold"))
-        self.label_sidebar.place(x=20, y=20)
+        # Título y botón cerrar
+        self.label_sidebar = ctk.CTkLabel(self.sidebar, text="Ajustes", font=("Roboto", 18, "bold"))
+        self.label_sidebar.place(x=20, y=15)
 
         self.btn_cerrar = ctk.CTkButton(
             self.sidebar, text="✖", width=30, height=30, 
             fg_color="transparent", hover_color="#333333", 
             text_color="gray", command=self.toggle_menu
         )
-        self.btn_cerrar.place(x=170, y=20)
+        self.btn_cerrar.place(x=self.ancho_menu - 40, y=15)
 
-        # Contenedor scrolleable para los sonidos
-        self.scroll_sonidos = ctk.CTkScrollableFrame(self.sidebar, width=180, height=550, fg_color="transparent")
-        self.scroll_sonidos.place(x=10, y=70)
+        # --- SISTEMA DE PESTAÑAS ---
+        self.tabview = ctk.CTkTabview(self.sidebar, width=260, height=580, fg_color="transparent")
+        self.tabview.place(x=10, y=50)
 
-        # Opción por defecto: Sin sonido
+        self.tabview.add("🎵 Sonidos")
+        self.tabview.add("⏱️ Pomodoro")
+
+        # --- PESTAÑA: SONIDOS ---
+        self.scroll_sonidos = ctk.CTkScrollableFrame(self.tabview.tab("🎵 Sonidos"), fg_color="transparent")
+        self.scroll_sonidos.pack(fill="both", expand=True, padx=5, pady=5)
+
         rb_ninguno = ctk.CTkRadioButton(
             self.scroll_sonidos, text="Silencio", variable=self.sonido_var, 
-            value="Sin sonidos", font=("Roboto", 13),
-            command=self.cambiar_sonido_vivo
+            value="Sin sonidos", font=("Roboto", 13), command=self.cambiar_sonido_vivo
         )
         rb_ninguno.pack(pady=10, padx=5, anchor="w")
 
-        # Escanear y añadir opciones de audio reales
+        # Carga dinámica de audios
         try:
             if not os.path.exists(config.SOUNDS_DIR):
                 os.makedirs(config.SOUNDS_DIR)
             archivos_audio = [f for f in os.listdir(config.SOUNDS_DIR) if f.endswith(('.mp3', '.wav', '.ogg'))]
             
             for archivo in archivos_audio:
-                nombre_limpio = os.path.splitext(archivo)[0].capitalize()
+                nombre_limpio = os.path.splitext(archivo)[0].replace("-", " ").capitalize()
                 rb = ctk.CTkRadioButton(
                     self.scroll_sonidos, text=nombre_limpio, variable=self.sonido_var, 
-                    value=archivo, font=("Roboto", 13),
-                    command=self.cambiar_sonido_vivo
+                    value=archivo, font=("Roboto", 13), command=self.cambiar_sonido_vivo
                 )
                 rb.pack(pady=10, padx=5, anchor="w")
-                
         except Exception as e:
             print(f"Error al cargar sonidos: {e}")
+
+        # --- PESTAÑA: POMODORO ---
+        tab_pomo = self.tabview.tab("⏱️ Pomodoro")
+        
+        self.selector_tipo_pomo = ctk.CTkSegmentedButton(
+            tab_pomo,
+            values=["Tradicional", "Personalizado"],
+            command=self.cambiar_vista_pomodoro,
+            selected_color=config.COLOR_PRIMARY
+        )
+        self.selector_tipo_pomo.set("Tradicional")
+        self.selector_tipo_pomo.pack(fill="x", pady=(10, 20), padx=5)
+
+        # Contenedor dinámico para la vista elegida
+        self.frame_pomo_dinamico = ctk.CTkFrame(tab_pomo, fg_color="transparent")
+        self.frame_pomo_dinamico.pack(fill="both", expand=True)
+
+        self.construir_vista_tradicional()
+
+    def construir_vista_tradicional(self):
+        # Limpiar el frame dinámico
+        for widget in self.frame_pomo_dinamico.winfo_children():
+            widget.destroy()
+            
+        lbl_info = ctk.CTkLabel(
+            self.frame_pomo_dinamico, 
+            text="El método clásico para máxima\nproductividad apoyado por la ciencia.", 
+            text_color="gray", font=("Roboto", 12)
+        )
+        lbl_info.pack(pady=(0, 20))
+
+        # Indicadores visuales
+        ctk.CTkLabel(self.frame_pomo_dinamico, text="🍅 Enfoque: 25 minutos", font=("Roboto", 14, "bold")).pack(pady=5)
+        ctk.CTkLabel(self.frame_pomo_dinamico, text="☕ Descanso: 5 minutos", font=("Roboto", 14, "bold")).pack(pady=5)
+
+        btn_aplicar = ctk.CTkButton(
+            self.frame_pomo_dinamico, text="Aplicar Tradicional", 
+            command=lambda: self.aplicar_tiempos(25, 5, "Tradicional"),
+            fg_color=config.COLOR_PRIMARY
+        )
+        btn_aplicar.pack(pady=30)
+
+    def construir_vista_personalizada(self):
+        # Limpiar el frame dinámico
+        for widget in self.frame_pomo_dinamico.winfo_children():
+            widget.destroy()
+
+        # Input Enfoque
+        ctk.CTkLabel(self.frame_pomo_dinamico, text="Minutos de Enfoque:", font=("Roboto", 13)).pack(anchor="w", padx=10)
+        self.entry_enfoque = ctk.CTkEntry(self.frame_pomo_dinamico, placeholder_text="Ej: 45")
+        self.entry_enfoque.pack(fill="x", padx=10, pady=(0, 15))
+
+        # Input Descanso
+        ctk.CTkLabel(self.frame_pomo_dinamico, text="Minutos de Descanso:", font=("Roboto", 13)).pack(anchor="w", padx=10)
+        self.entry_descanso = ctk.CTkEntry(self.frame_pomo_dinamico, placeholder_text="Ej: 10")
+        self.entry_descanso.pack(fill="x", padx=10, pady=(0, 20))
+
+        btn_guardar = ctk.CTkButton(
+            self.frame_pomo_dinamico, text="Guardar y Aplicar", 
+            command=self.validar_y_aplicar_personalizado,
+            fg_color=config.COLOR_PRIMARY
+        )
+        btn_guardar.pack(pady=10)
+
+    def cambiar_vista_pomodoro(self, seleccion):
+        if seleccion == "Tradicional":
+            self.construir_vista_tradicional()
+        else:
+            self.construir_vista_personalizada()
+
+    def validar_y_aplicar_personalizado(self):
+        try:
+            min_enfoque = int(self.entry_enfoque.get())
+            min_descanso = int(self.entry_descanso.get())
+            
+            if min_enfoque > 0 and min_descanso > 0:
+                self.aplicar_tiempos(min_enfoque, min_descanso, "Personalizado")
+            else:
+                print("Los valores deben ser mayores a 0")
+        except ValueError:
+            print("Por favor, ingresa números válidos")
+
+    def aplicar_tiempos(self, min_enfoque, min_descanso, tipo_reloj):
+        # Sobrescribimos la configuración actual en memoria
+        config.POMODORO_TIME = min_enfoque * 60
+        config.SHORT_BREAK = min_descanso * 60
+        
+        # ACTUALIZAR EL TEXTO EN LA INTERFAZ
+        self.label_tipo_reloj.configure(text=f"Modo: {tipo_reloj}")
+
+        # Reiniciamos el reloj para que refleje los cambios inmediatamente
+        self.reset_timer()
+        self.toggle_menu() 
 
     # --- ANIMACIÓN DEL MENÚ LATERAL ---
     def toggle_menu(self):
@@ -170,7 +276,7 @@ class ZenFocusApp(ctk.CTk):
         if self.menu_abierto:
             self.animar_menu(450) # Lo esconde fuera de la ventana
         else:
-            self.animar_menu(230) # Lo desliza hacia adentro
+            self.animar_menu(170) # Considera el nuevo ancho (450 - 280 = 170)
         self.menu_abierto = not self.menu_abierto
 
     def animar_menu(self, target_x):
