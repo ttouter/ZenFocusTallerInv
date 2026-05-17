@@ -1,0 +1,12 @@
+# Ignorar carpetas de caché compiladas de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignorar entornos virtuales (por si llegas a usar uno)
+venv/
+env/
+
+# Ignorar archivos basura del sistema operativo
+.DS_Store
+Thumbs.db
