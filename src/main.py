@@ -3,19 +3,19 @@ import config
 import math
 import sys
 import os
-import pygame
 
 # Asegurar rutas
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from ui.components.breathing_halo import BreathingHalo
+from logic.audio_engine import AudioEngine
 
 class ZenFocusApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        # --- Inicializar Pygame Mixer para el audio ---
-        pygame.mixer.init()
+        # --- Inicializar el Motor de Audio ---
+        self.audio_engine = AudioEngine()
 
         # --- Configuración de la Ventana ---
         self.title("ZenFocus")
@@ -174,23 +174,20 @@ class ZenFocusApp(ctk.CTk):
         )
         rb_ninguno.pack(pady=10, padx=5, anchor="w")
 
-        # Carga dinámica de audios
-        try:
-            if not os.path.exists(config.SOUNDS_DIR):
-                os.makedirs(config.SOUNDS_DIR)
-            archivos_audio = [f for f in os.listdir(config.SOUNDS_DIR) if f.endswith(('.mp3', '.wav', '.ogg'))]
-            
-            for archivo in archivos_audio:
-                nombre_limpio = os.path.splitext(archivo)[0].replace("-", " ").capitalize()
-                rb = ctk.CTkRadioButton(
-                    self.scroll_sonidos, text=nombre_limpio, variable=self.sonido_var, 
-                    value=archivo, font=("Roboto", 13), 
-                    text_color=config.COLOR_TEXT_MAIN, fg_color=config.COLOR_PRIMARY,
-                    command=self.cambiar_sonido_vivo
-                )
-                rb.pack(pady=10, padx=5, anchor="w")
-        except Exception as e:
-            print(f"Error al cargar sonidos: {e}")
+        # Carga dinámica de audios delegada al motor de audio
+        sonidos_disponibles = self.audio_engine.obtener_sonidos_disponibles()
+        for sonido in sonidos_disponibles:
+            rb = ctk.CTkRadioButton(
+                self.scroll_sonidos, 
+                text=sonido["nombre_mostrar"], 
+                variable=self.sonido_var, 
+                value=sonido["archivo"], 
+                font=("Roboto", 13), 
+                text_color=config.COLOR_TEXT_MAIN, 
+                fg_color=config.COLOR_PRIMARY,
+                command=self.cambiar_sonido_vivo
+            )
+            rb.pack(pady=10, padx=5, anchor="w")
 
         # --- PESTAÑA: POMODORO ---
         tab_pomo = self.tabview.tab("⏱️ Pomodoro")
@@ -300,23 +297,15 @@ class ZenFocusApp(ctk.CTk):
     # --- MÉTODOS DE AUDIO ---
     def reproducir_sonido(self):
         sonido_elegido = self.sonido_var.get()
-        if sonido_elegido != "Sin sonidos":
-            archivo_sonido = os.path.join(config.SOUNDS_DIR, sonido_elegido) 
-            if os.path.exists(archivo_sonido):
-                try:
-                    pygame.mixer.music.load(archivo_sonido)
-                    pygame.mixer.music.play(-1)
-                except Exception as e:
-                    print(f"No se pudo reproducir: {e}")
+        self.audio_engine.reproducir(sonido_elegido)
 
     def detener_sonido(self):
-        if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
-            pygame.mixer.music.stop()
+        self.audio_engine.detener()
 
     def cambiar_sonido_vivo(self):
         if self.timer_running and self.selector_modo.get() == "Enfoque":
-            self.detener_sonido()
-            self.reproducir_sonido()
+            self.audio_engine.detener()
+            self.audio_engine.reproducir(self.sonido_var.get())
 
     # --- MÉTODOS DEL TEMPORIZADOR ---
     def cambiar_modo(self, valor):
