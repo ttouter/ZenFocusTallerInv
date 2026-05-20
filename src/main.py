@@ -110,8 +110,14 @@ class ZenFocusApp(ctk.CTk):
 
     def actualizar_etiquetas_estado(self):
         if self.estado_actual == "Enfoque":
-            texto_estado = "ⓘ Estado Actual: Enfoque (Próximo: Descanso)"
+            if self.ciclo_actual >= self.ciclos_totales:
+                texto_estado = "ⓘ Estado Actual: Enfoque (Próximo: Descanso Largo)"
+            else:
+                texto_estado = "ⓘ Estado Actual: Enfoque (Próximo: Descanso)"
             self.halo.set_color(config.COLOR_PRIMARY)
+        elif self.estado_actual == "Descanso Largo":
+            texto_estado = "ⓘ Estado Actual: Descanso Largo (Próximo: Fin)"
+            self.halo.set_color(config.COLOR_ACCENT)
         else:
             texto_estado = "ⓘ Estado Actual: Descanso (Próximo: Enfoque)"
             self.halo.set_color(config.COLOR_ACCENT)
@@ -184,9 +190,42 @@ class ZenFocusApp(ctk.CTk):
 
         # --- PESTAÑA: TIEMPOS ---
         tab_pomo = self.tabview.tab("⏱️ Tiempos")
+        
+        ctk.CTkLabel(tab_pomo, text="Modo de Temporizador:", font=("Segoe UI", 13), text_color=config.COLOR_TEXT_MAIN).pack(pady=(10, 5))
+        
+        self.selector_modo_pomo = ctk.CTkSegmentedButton(
+            tab_pomo,
+            values=["Normal", "Personalizado"],
+            command=self.cambiar_modo_pomodoro,
+            selected_color=config.COLOR_PRIMARY,
+            selected_hover_color=config.COLOR_PRIMARY_HOVER,
+            unselected_color=config.COLOR_BACKGROUND
+        )
+        self.selector_modo_pomo.set("Normal")
+        self.selector_modo_pomo.pack(fill="x", padx=10, pady=5)
+
         self.frame_pomo_dinamico = ctk.CTkFrame(tab_pomo, fg_color="transparent")
-        self.frame_pomo_dinamico.pack(fill="both", expand=True, pady=10)
+        # No usamos .pack() aquí todavía para que inicie oculto en el modo Normal
+        
         self.construir_vista_personalizada()
+
+    def cambiar_modo_pomodoro(self, modo):
+        if modo == "Normal":
+            # Ocultamos el menú personalizado
+            self.frame_pomo_dinamico.pack_forget()
+            
+            # Restauramos los valores tradicionales por defecto
+            config.POMODORO_TIME = 25 * 60
+            config.SHORT_BREAK = 5 * 60
+            self.ciclos_totales = 4
+            
+            self.reset_timer()
+            if self.modo_vista != "Flotante": 
+                self.mostrar_alerta("⏱️ Modo Normal (25/5) activado", config.COLOR_PRIMARY)
+                
+        elif modo == "Personalizado":
+            # Mostramos el menú con los campos para escribir
+            self.frame_pomo_dinamico.pack(fill="both", expand=True, pady=10)
 
     def construir_vista_personalizada(self):
         for widget in self.frame_pomo_dinamico.winfo_children():
@@ -299,6 +338,7 @@ class ZenFocusApp(ctk.CTk):
                 self.ciclos_totales = ciclos
                 self.reset_timer()
                 self.toggle_menu() 
+                self.mostrar_alerta("✅ Tiempos personalizados aplicados", config.COLOR_PRIMARY)
             else:
                 self.mostrar_alerta("❌ Valores deben ser > 0", config.COLOR_FRAME)
         except ValueError:
@@ -363,26 +403,41 @@ class ZenFocusApp(ctk.CTk):
         elif self.time_left <= 0:
             self.detener_sonido()
             if self.estado_actual == "Enfoque":
-                self.estado_actual = "Descanso"
-                self.time_left = config.SHORT_BREAK
-                self.total_time = config.SHORT_BREAK
-                self.notification_engine.gestionar_notificaciones(False)
-                if self.modo_vista != "Flotante": self.mostrar_alerta("☕ ¡Tiempo de descanso!", config.COLOR_ACCENT)
-            else:
-                self.estado_actual = "Enfoque"
-                self.time_left = config.POMODORO_TIME
-                self.total_time = config.POMODORO_TIME
-                self.ciclo_actual += 1
-                if self.ciclo_actual > self.ciclos_totales:
+                if self.ciclo_actual >= self.ciclos_totales:
+                    # Toca descanso largo al final de los ciclos
+                    self.estado_actual = "Descanso Largo"
+                    self.time_left = config.LONG_BREAK
+                    self.total_time = config.LONG_BREAK
+                    self.notification_engine.gestionar_notificaciones(False)
+                    if self.modo_vista != "Flotante": self.mostrar_alerta("🎉 ¡4 ciclos! Descanso largo.", config.COLOR_ACCENT)
+                else:
+                    # Descanso corto normal
+                    self.estado_actual = "Descanso"
+                    self.time_left = config.SHORT_BREAK
+                    self.total_time = config.SHORT_BREAK
+                    self.notification_engine.gestionar_notificaciones(False)
+                    if self.modo_vista != "Flotante": self.mostrar_alerta("☕ ¡Tiempo de descanso!", config.COLOR_ACCENT)
+            
+            elif self.estado_actual in ["Descanso", "Descanso Largo"]:
+                if self.estado_actual == "Descanso Largo":
+                    # Fin de la sesión completa
                     self.timer_running = False
                     self.halo.stop_breathing()
                     self.boton_start.configure(text="▷ Comenzar Ciclo")
                     self.ciclo_actual = 1
-                    if self.modo_vista != "Flotante": self.mostrar_alerta("🎉 ¡Sesión completada!", config.COLOR_PRIMARY)
+                    self.estado_actual = "Enfoque"
+                    self.time_left = config.POMODORO_TIME
+                    self.total_time = config.POMODORO_TIME
+                    if self.modo_vista != "Flotante": self.mostrar_alerta("✅ ¡Sesión completada!", config.COLOR_PRIMARY)
                     self.actualizar_etiquetas_estado()
                     self.actualizar_reloj()
                     return
                 else:
+                    # Fin de descanso corto, vuelve al enfoque
+                    self.estado_actual = "Enfoque"
+                    self.time_left = config.POMODORO_TIME
+                    self.total_time = config.POMODORO_TIME
+                    self.ciclo_actual += 1
                     if self.modo_vista != "Flotante": self.mostrar_alerta("🍅 ¡De vuelta al enfoque!", config.COLOR_PRIMARY)
                     if self.timer_running:
                         self.reproducir_sonido()
