@@ -16,7 +16,7 @@ class ZenFocusApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        # --- Inicializar el Motor de Audio ---
+        # --- Inicializar Motores ---
         self.audio_engine = AudioEngine()
         self.notification_engine = NotificationEngine()
 
@@ -26,324 +26,333 @@ class ZenFocusApp(ctk.CTk):
         self.resizable(False, False)
         self.configure(fg_color=config.COLOR_BACKGROUND)
 
-        # Configuración de la cuadrícula principal
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure((0, 1, 2, 3, 4, 5), weight=1)
+        self.grid_rowconfigure((0, 1, 2, 3, 4, 5, 6), weight=1)
 
-        # --- Variables de Estado ---
+        # --- Variables de Estado y Ciclos ---
         self.time_left = config.POMODORO_TIME
         self.total_time = config.POMODORO_TIME 
         self.timer_running = False
         self.timer_id = None
         
-        # --- Variables del Menú Lateral ---
+        self.estado_actual = "Enfoque" 
+        self.ciclo_actual = 1
+        self.ciclos_totales = 4
+        self.modo_vista = "Normal" # Controla la vista actual
+        
+        # --- Variables del Menú (Responsivo) ---
         self.menu_abierto = False 
-        self.menu_x = 450  # Controla matemáticamente la posición X del menú
+        self.ancho_menu = 280
+        self.menu_offset_x = 0  # Controla la animación desde el borde derecho
         self.sonido_var = ctk.StringVar(value="Sin sonidos") 
 
         # --- Interfaz ---
         self.crear_widgets()
         self.crear_menu_lateral()
         
-        # Inicialización visual
+        self.actualizar_etiquetas_estado()
         self.actualizar_reloj()
 
         ctk.CTkFrame(self.scroll_sonidos, height=2, fg_color=config.COLOR_FRAME).pack(fill="x", pady=(15,10))
         self.mixer_panel = MixerPanel(self.scroll_sonidos, self.audio_engine)
         self.mixer_panel.pack(fill="x", padx=5, pady=5)
 
+        # --- Eventos para Pantalla ---
+        self.bind("<ButtonPress-1>", self.iniciar_arrastre)
+        self.bind("<B1-Motion>", self.arrastrar)
+        self.bind("<Double-Button-1>", self.restaurar_vista_normal)
+        self.bind("<Escape>", self.restaurar_desde_escape) # Presionar Esc para salir
+
     def crear_widgets(self):
-        # 1. Título
         self.label_titulo = ctk.CTkLabel(
-            self, 
-            text="ZenFocus", 
-            font=("Roboto", 24, "bold"),
-            text_color=config.COLOR_TEXT_MAIN
+            self, text="ZenFocus", font=("Segoe UI Variable", 24, "bold"), text_color=config.COLOR_TEXT_MAIN
         )
         self.label_titulo.grid(row=0, column=0, pady=(20, 0))
 
-        # Botón para abrir el menú (esquina superior derecha)
+        # El botón de ajustes se ancla dinámicamente a la esquina superior derecha
         self.btn_abrir_menu = ctk.CTkButton(
-            self,
-            text="⚙️ Ajustes",
-            width=90,
-            height=30,
-            corner_radius=15,
-            fg_color=config.COLOR_FRAME,
-            hover_color=config.COLOR_PRIMARY_HOVER,
-            text_color=config.COLOR_TEXT_MAIN,
-            font=("Roboto", 12),
-            command=self.toggle_menu
+            self, text="⚙️ Ajustes", width=90, height=30, corner_radius=15,
+            fg_color=config.COLOR_FRAME, hover_color=config.COLOR_TRACK, text_color=config.COLOR_TEXT_MAIN,
+            font=("Segoe UI", 12), command=self.toggle_menu
         )
-        self.btn_abrir_menu.place(x=340, y=20)
+        self.btn_abrir_menu.place(relx=0.95, y=20, anchor="ne")
 
-        # Etiqueta de Modo Actual
-        self.label_tipo_reloj = ctk.CTkLabel(
-            self,
-            text="Modo: Tradicional",
-            font=("Roboto", 12),
-            text_color=config.COLOR_TEXT_MUTED
-        )
-        self.label_tipo_reloj.grid(row=1, column=0, pady=(0, 10))
+        self.frame_info = ctk.CTkFrame(self, fg_color=config.COLOR_FRAME, corner_radius=10)
+        self.frame_info.grid(row=1, column=0, pady=10, padx=20, sticky="ew")
+        
+        self.label_estado = ctk.CTkLabel(self.frame_info, text="", font=("Segoe UI", 14), text_color=config.COLOR_TEXT_MAIN)
+        self.label_estado.pack(pady=(10, 0))
+        
+        self.label_ciclo = ctk.CTkLabel(self.frame_info, text="", font=("Segoe UI", 12), text_color=config.COLOR_TEXT_MUTED)
+        self.label_ciclo.pack(pady=(0, 10))
 
-        # 2. Selector de Modo
-        self.selector_modo = ctk.CTkSegmentedButton(
-            self,
-            values=["Enfoque", "Descanso"],
-            command=self.cambiar_modo,
-            selected_color=config.COLOR_PRIMARY,
-            selected_hover_color=config.COLOR_PRIMARY_HOVER,
-            unselected_color=config.COLOR_FRAME,
-            unselected_hover_color=config.COLOR_BACKGROUND,
-            font=("Roboto", 14)
-        )
-        self.selector_modo.set("Enfoque")
-        self.selector_modo.grid(row=2, column=0, pady=10)
-
-        # 3. COMPONENTE: Breathing Halo
         self.halo = BreathingHalo(
-            self, 
-            bg_color=config.COLOR_BACKGROUND,
-            progress_color=config.COLOR_PRIMARY,
-            track_color=config.COLOR_TRACK
+            self, bg_color=config.COLOR_BACKGROUND, progress_color=config.COLOR_PRIMARY, track_color=config.COLOR_TRACK
         )
         self.halo.grid(row=3, column=0, pady=20)
 
-        # 4. Botón Iniciar
-        self.boton_start = ctk.CTkButton(
-            self,
-            text="Iniciar",
-            command=self.toggle_timer,
-            fg_color=config.COLOR_PRIMARY,
-            hover_color=config.COLOR_PRIMARY_HOVER,
-            text_color=config.COLOR_TEXT_MAIN,
-            width=140,
-            height=40,
-            corner_radius=20,
-            font=("Roboto", 16, "bold")
-        )
-        self.boton_start.grid(row=4, column=0, pady=10)
+        self.frame_botones = ctk.CTkFrame(self, fg_color="transparent")
+        self.frame_botones.grid(row=4, column=0, pady=10)
 
-        # 5. Botón Reiniciar
-        self.boton_reset = ctk.CTkButton(
-            self,
-            text="Reiniciar",
-            command=self.reset_timer,
-            fg_color="transparent",
-            border_width=2,
-            border_color=config.COLOR_TEXT_MUTED,
-            text_color=config.COLOR_TEXT_MUTED,
-            hover_color=config.COLOR_FRAME,
-            width=140,
-            height=40,
-            corner_radius=20,
-            font=("Roboto", 14)
+        self.boton_start = ctk.CTkButton(
+            self.frame_botones, text="▷ Comenzar Ciclo", command=self.toggle_timer,
+            fg_color=config.COLOR_FRAME, hover_color=config.COLOR_TRACK, text_color=config.COLOR_TEXT_MAIN,
+            border_width=1, border_color=config.COLOR_TRACK, width=150, height=40, corner_radius=8, font=("Segoe UI", 14)
         )
-        self.boton_reset.grid(row=5, column=0, pady=(0, 20))
+        self.boton_start.pack(side="left", padx=10)
+
+        self.boton_reset = ctk.CTkButton(
+            self.frame_botones, text="⟳ Reiniciar", command=self.reset_timer,
+            fg_color="transparent", hover_color=config.COLOR_FRAME, text_color=config.COLOR_TEXT_MUTED,
+            border_width=1, border_color=config.COLOR_TEXT_MUTED, width=150, height=40, corner_radius=8, font=("Segoe UI", 14)
+        )
+        self.boton_reset.pack(side="left", padx=10)
+
+    def actualizar_etiquetas_estado(self):
+        if self.estado_actual == "Enfoque":
+            texto_estado = "ⓘ Estado Actual: Enfoque (Próximo: Descanso)"
+            self.halo.set_color(config.COLOR_PRIMARY)
+        else:
+            texto_estado = "ⓘ Estado Actual: Descanso (Próximo: Enfoque)"
+            self.halo.set_color(config.COLOR_ACCENT)
+            
+        self.label_estado.configure(text=texto_estado)
+        self.label_ciclo.configure(text=f"Ciclo {self.ciclo_actual} / {self.ciclos_totales}")
 
     def crear_menu_lateral(self):
-        self.ancho_menu = 280
-        self.sidebar = ctk.CTkFrame(self, width=self.ancho_menu, height=650, corner_radius=0, fg_color=config.COLOR_FRAME)
-        self.sidebar.place(x=self.menu_x, y=0) 
+        # El menú se ancla al borde derecho y usa toda la altura (relheight=1.0)
+        self.sidebar = ctk.CTkFrame(self, width=self.ancho_menu, corner_radius=0, fg_color=config.COLOR_FRAME)
+        self.sidebar.place(relx=1.0, x=self.menu_offset_x, y=0, relheight=1.0) 
 
-        # Título y botón cerrar
-        self.label_sidebar = ctk.CTkLabel(self.sidebar, text="Ajustes", font=("Roboto", 18, "bold"), text_color=config.COLOR_TEXT_MAIN)
+        self.label_sidebar = ctk.CTkLabel(self.sidebar, text="Ajustes", font=("Segoe UI", 18, "bold"), text_color=config.COLOR_TEXT_MAIN)
         self.label_sidebar.place(x=20, y=15)
 
         self.btn_cerrar = ctk.CTkButton(
-            self.sidebar, text="✖", width=30, height=30, 
-            fg_color="transparent", hover_color=config.COLOR_BACKGROUND, 
+            self.sidebar, text="✖", width=30, height=30, fg_color="transparent", hover_color=config.COLOR_TRACK, 
             text_color=config.COLOR_TEXT_MUTED, command=self.toggle_menu
         )
         self.btn_cerrar.place(x=self.ancho_menu - 40, y=15)
 
-        # --- SISTEMA DE PESTAÑAS ---
         self.tabview = ctk.CTkTabview(
-            self.sidebar, width=260, height=580, 
-            fg_color="transparent", 
+            self.sidebar, width=260, fg_color="transparent", 
             segmented_button_selected_color=config.COLOR_PRIMARY,
-            segmented_button_selected_hover_color=config.COLOR_PRIMARY_HOVER
+            segmented_button_selected_hover_color=config.COLOR_PRIMARY_HOVER,
+            segmented_button_unselected_color=config.COLOR_BACKGROUND
         )
-        self.tabview.place(x=10, y=50)
+        self.tabview.place(x=10, y=50, relheight=0.85) # Permite estirarse en pantallas grandes
 
         self.tabview.add("🎵 Sonidos")
-        self.tabview.add("⏱️ Pomodoro")
+        self.tabview.add("⏱️ Tiempos")
+        self.tabview.add("🖥️ Pantalla") 
 
-        # --- PESTAÑA: SONIDOS ---
-        self.scroll_sonidos = ctk.CTkScrollableFrame(self.tabview.tab("🎵 Sonidos"), fg_color="transparent")
-        self.scroll_sonidos.pack(fill="both", expand=True, padx=5, pady=5)
-
-        rb_ninguno = ctk.CTkRadioButton(
-            self.scroll_sonidos, text="Silencio", variable=self.sonido_var, 
-            value="Sin sonidos", font=("Roboto", 13), 
-            text_color=config.COLOR_TEXT_MAIN, fg_color=config.COLOR_PRIMARY,
-            command=self.cambiar_sonido_vivo
-        )
-        rb_ninguno.pack(pady=10, padx=5, anchor="w")
-
-        # Carga dinámica de audios delegada al motor de audio
-        sonidos_disponibles = self.audio_engine.obtener_sonidos_disponibles()
-        for sonido in sonidos_disponibles:
-            rb = ctk.CTkRadioButton(
-                self.scroll_sonidos, 
-                text=sonido["nombre_mostrar"], 
-                variable=self.sonido_var, 
-                value=sonido["archivo"], 
-                font=("Roboto", 13), 
-                text_color=config.COLOR_TEXT_MAIN, 
-                fg_color=config.COLOR_PRIMARY,
-                command=self.cambiar_sonido_vivo
-            )
-            rb.pack(pady=10, padx=5, anchor="w")
-
-        # --- PESTAÑA: POMODORO ---
-        tab_pomo = self.tabview.tab("⏱️ Pomodoro")
+        # --- PESTAÑA: PANTALLA ---
+        tab_pantalla = self.tabview.tab("🖥️ Pantalla")
+        ctk.CTkLabel(tab_pantalla, text="Modo de Visualización:", font=("Segoe UI", 13), text_color=config.COLOR_TEXT_MAIN).pack(pady=(20, 10))
         
-        self.selector_tipo_pomo = ctk.CTkSegmentedButton(
-            tab_pomo,
-            values=["Tradicional", "Personalizado"],
-            command=self.cambiar_vista_pomodoro,
+        self.selector_vista = ctk.CTkSegmentedButton(
+            tab_pantalla,
+            values=["Normal", "Completa", "Flotante"],
+            command=self.cambiar_vista,
             selected_color=config.COLOR_PRIMARY,
             selected_hover_color=config.COLOR_PRIMARY_HOVER,
             unselected_color=config.COLOR_BACKGROUND
         )
-        self.selector_tipo_pomo.set("Tradicional")
-        self.selector_tipo_pomo.pack(fill="x", pady=(10, 20), padx=5)
+        self.selector_vista.set("Normal")
+        self.selector_vista.pack(fill="x", padx=10, pady=10)
+        
+        ctk.CTkLabel(
+            tab_pantalla, 
+            text="💡 Tip: En el modo flotante, \npuedes arrastrar el reloj a \ncualquier parte. Haz doble \nclic para volver a Normal.", 
+            font=("Segoe UI", 12), text_color=config.COLOR_TEXT_MUTED, justify="left"
+        ).pack(pady=20, padx=10)
 
-        # Contenedor dinámico para la vista elegida
+        # --- PESTAÑA: SONIDOS ---
+        self.scroll_sonidos = ctk.CTkScrollableFrame(self.tabview.tab("🎵 Sonidos"), fg_color="transparent")
+        self.scroll_sonidos.pack(fill="both", expand=True, padx=5, pady=5)
+        rb_ninguno = ctk.CTkRadioButton(
+            self.scroll_sonidos, text="Silencio", variable=self.sonido_var, value="Sin sonidos", font=("Segoe UI", 13), 
+            text_color=config.COLOR_TEXT_MAIN, fg_color=config.COLOR_PRIMARY, command=self.cambiar_sonido_vivo
+        )
+        rb_ninguno.pack(pady=10, padx=5, anchor="w")
+
+        for sonido in self.audio_engine.obtener_sonidos_disponibles():
+            rb = ctk.CTkRadioButton(
+                self.scroll_sonidos, text=sonido["nombre_mostrar"], variable=self.sonido_var, value=sonido["archivo"], 
+                font=("Segoe UI", 13), text_color=config.COLOR_TEXT_MAIN, fg_color=config.COLOR_PRIMARY, command=self.cambiar_sonido_vivo
+            )
+            rb.pack(pady=10, padx=5, anchor="w")
+
+        # --- PESTAÑA: TIEMPOS ---
+        tab_pomo = self.tabview.tab("⏱️ Tiempos")
         self.frame_pomo_dinamico = ctk.CTkFrame(tab_pomo, fg_color="transparent")
-        self.frame_pomo_dinamico.pack(fill="both", expand=True)
-
-        self.construir_vista_tradicional()
-
-    def construir_vista_tradicional(self):
-        for widget in self.frame_pomo_dinamico.winfo_children():
-            widget.destroy()
-            
-        lbl_info = ctk.CTkLabel(
-            self.frame_pomo_dinamico, 
-            text="El método clásico para máxima\nproductividad apoyado por la ciencia.", 
-            text_color=config.COLOR_TEXT_MUTED, font=("Roboto", 12)
-        )
-        lbl_info.pack(pady=(0, 20))
-
-        ctk.CTkLabel(self.frame_pomo_dinamico, text="🍅 Enfoque: 25 minutos", font=("Roboto", 14, "bold"), text_color=config.COLOR_TEXT_MAIN).pack(pady=5)
-        ctk.CTkLabel(self.frame_pomo_dinamico, text="☕ Descanso: 5 minutos", font=("Roboto", 14, "bold"), text_color=config.COLOR_TEXT_MAIN).pack(pady=5)
-
-        btn_aplicar = ctk.CTkButton(
-            self.frame_pomo_dinamico, text="Aplicar Tradicional", 
-            command=lambda: self.aplicar_tiempos(25, 5, "Tradicional"),
-            fg_color=config.COLOR_PRIMARY, hover_color=config.COLOR_PRIMARY_HOVER
-        )
-        btn_aplicar.pack(pady=30)
+        self.frame_pomo_dinamico.pack(fill="both", expand=True, pady=10)
+        self.construir_vista_personalizada()
 
     def construir_vista_personalizada(self):
         for widget in self.frame_pomo_dinamico.winfo_children():
             widget.destroy()
 
-        ctk.CTkLabel(self.frame_pomo_dinamico, text="Minutos de Enfoque:", font=("Roboto", 13), text_color=config.COLOR_TEXT_MAIN).pack(anchor="w", padx=10)
-        self.entry_enfoque = ctk.CTkEntry(self.frame_pomo_dinamico, placeholder_text="Ej: 45", fg_color=config.COLOR_BACKGROUND, border_color=config.COLOR_TEXT_MUTED)
+        self.var_enfoque = ctk.StringVar(value=str(int(config.POMODORO_TIME / 60)))
+        self.var_descanso = ctk.StringVar(value=str(int(config.SHORT_BREAK / 60)))
+        self.var_ciclos = ctk.StringVar(value=str(self.ciclos_totales))
+
+        ctk.CTkLabel(self.frame_pomo_dinamico, text="Enfoque (min):", font=("Segoe UI", 13)).pack(anchor="w", padx=10)
+        self.entry_enfoque = ctk.CTkEntry(self.frame_pomo_dinamico, fg_color=config.COLOR_BACKGROUND, textvariable=self.var_enfoque)
         self.entry_enfoque.pack(fill="x", padx=10, pady=(0, 15))
 
-        ctk.CTkLabel(self.frame_pomo_dinamico, text="Minutos de Descanso:", font=("Roboto", 13), text_color=config.COLOR_TEXT_MAIN).pack(anchor="w", padx=10)
-        self.entry_descanso = ctk.CTkEntry(self.frame_pomo_dinamico, placeholder_text="Ej: 10", fg_color=config.COLOR_BACKGROUND, border_color=config.COLOR_TEXT_MUTED)
-        self.entry_descanso.pack(fill="x", padx=10, pady=(0, 20))
+        ctk.CTkLabel(self.frame_pomo_dinamico, text="Descanso (min):", font=("Segoe UI", 13)).pack(anchor="w", padx=10)
+        self.entry_descanso = ctk.CTkEntry(self.frame_pomo_dinamico, fg_color=config.COLOR_BACKGROUND, textvariable=self.var_descanso)
+        self.entry_descanso.pack(fill="x", padx=10, pady=(0, 15))
+        
+        ctk.CTkLabel(self.frame_pomo_dinamico, text="Ciclos:", font=("Segoe UI", 13)).pack(anchor="w", padx=10)
+        self.entry_ciclos = ctk.CTkEntry(self.frame_pomo_dinamico, fg_color=config.COLOR_BACKGROUND, textvariable=self.var_ciclos)
+        self.entry_ciclos.pack(fill="x", padx=10, pady=(0, 20))
 
-        btn_guardar = ctk.CTkButton(
-            self.frame_pomo_dinamico, text="Guardar y Aplicar", 
-            command=self.validar_y_aplicar_personalizado,
+        ctk.CTkButton(
+            self.frame_pomo_dinamico, text="Aplicar Tiempos", command=self.validar_y_aplicar_personalizado,
             fg_color=config.COLOR_PRIMARY, hover_color=config.COLOR_PRIMARY_HOVER
-        )
-        btn_guardar.pack(pady=10)
+        ).pack(pady=10)
 
-    def cambiar_vista_pomodoro(self, seleccion):
-        if seleccion == "Tradicional":
-            self.construir_vista_tradicional()
-        else:
-            self.construir_vista_personalizada()
+    # --- LÓGICA DE VISTAS (PANTALLA) ---
+    def cambiar_vista(self, modo):
+        self.modo_vista = modo
+        
+        # 1. Resetear TODOS los estados previos antes de aplicar el nuevo
+        self.state('normal') # <--- ESTA LÍNEA QUITA EL BUG DEL MAXIMIZADO
+        self.overrideredirect(False)
+        self.attributes("-fullscreen", False)
+        self.attributes("-topmost", False)
+        self.resizable(True, True) 
+
+        if modo == "Normal":
+            self.geometry("450x650")
+            self.resizable(False, False) # Volvemos a bloquear el tamaño
+            
+            # Restaurar visibilidad
+            self.label_titulo.grid()
+            self.btn_abrir_menu.place(relx=0.95, y=20, anchor="ne")
+            self.frame_info.grid()
+            self.frame_botones.grid()
+            self.halo.grid(row=3, column=0, pady=20, rowspan=1)
+            
+        elif modo == "Completa":
+            # Forzamos maximizado
+            self.state('zoomed') 
+            
+            self.label_titulo.grid()
+            self.btn_abrir_menu.place(relx=0.95, y=20, anchor="ne")
+            self.frame_info.grid()
+            self.frame_botones.grid()
+            self.halo.grid(row=3, column=0, pady=20, rowspan=1)
+            
+            self.mostrar_alerta("💡 Presiona 'Esc' para salir", config.COLOR_FRAME)
+            
+        elif modo == "Flotante":
+            self.overrideredirect(True)
+            self.attributes("-topmost", True)
+            self.geometry("260x260")
+            self.resizable(False, False)
+            
+            # Ocultar controles
+            self.label_titulo.grid_remove()
+            self.btn_abrir_menu.place_forget()
+            self.frame_info.grid_remove()
+            self.frame_botones.grid_remove()
+            
+            if self.menu_abierto:
+                self.toggle_menu()
+                
+            self.halo.grid(row=0, column=0, pady=0, rowspan=7)
+            self.mostrar_alerta("💡 Doble clic para salir", config.COLOR_PRIMARY)
+
+    def iniciar_arrastre(self, event):
+        if self.modo_vista == "Flotante":
+            self.x = event.x
+            self.y = event.y
+
+    def arrastrar(self, event):
+        if self.modo_vista == "Flotante":
+            deltax = event.x - self.x
+            deltay = event.y - self.y
+            x = self.winfo_x() + deltax
+            y = self.winfo_y() + deltay
+            self.geometry(f"+{x}+{y}")
+            
+    def restaurar_vista_normal(self, event):
+        if self.modo_vista == "Flotante":
+            self.selector_vista.set("Normal") 
+            self.cambiar_vista("Normal")
+
+    def restaurar_desde_escape(self, event):
+        if self.modo_vista == "Completa":
+            self.selector_vista.set("Normal")
+            self.cambiar_vista("Normal")
 
     def validar_y_aplicar_personalizado(self):
         try:
-            min_enfoque = int(self.entry_enfoque.get())
-            min_descanso = int(self.entry_descanso.get())
-            
-            if min_enfoque > 0 and min_descanso > 0:
-                self.aplicar_tiempos(min_enfoque, min_descanso, "Personalizado")
+            min_enf = int(self.var_enfoque.get())
+            min_des = int(self.var_descanso.get())
+            ciclos = int(self.var_ciclos.get())
+            if min_enf > 0 and min_des > 0 and ciclos > 0:
+                config.POMODORO_TIME = min_enf * 60
+                config.SHORT_BREAK = min_des * 60
+                self.ciclos_totales = ciclos
+                self.reset_timer()
+                self.toggle_menu() 
             else:
-                print("Los valores deben ser mayores a 0")
+                self.mostrar_alerta("❌ Valores deben ser > 0", config.COLOR_FRAME)
         except ValueError:
-            print("Por favor, ingresa números válidos")
+            self.mostrar_alerta("❌ Ingresa números válidos", config.COLOR_FRAME)
 
-    def aplicar_tiempos(self, min_enfoque, min_descanso, tipo_reloj):
-        config.POMODORO_TIME = min_enfoque * 60
-        config.SHORT_BREAK = min_descanso * 60
-        self.label_tipo_reloj.configure(text=f"Modo: {tipo_reloj}")
-        self.reset_timer()
-        self.toggle_menu() 
-
-    # --- ANIMACIÓN DEL MENÚ LATERAL ---
+    # --- ANIMACIÓN RESPONSIVA DEL MENÚ ---
     def toggle_menu(self):
         self.sidebar.lift()
         if self.menu_abierto:
-            self.animar_menu(450)
+            self.animar_menu(0) # Ocultar
         else:
-            self.animar_menu(170)
+            self.animar_menu(-self.ancho_menu) # Mostrar (-280px)
         self.menu_abierto = not self.menu_abierto
 
     def animar_menu(self, target_x):
-        step = 15 
-        if self.menu_x > target_x:
-            self.menu_x = max(self.menu_x - step, target_x)
-            self.sidebar.place(x=self.menu_x, y=0)
+        step = 30 
+        if self.menu_offset_x > target_x:
+            self.menu_offset_x = max(self.menu_offset_x - step, target_x)
+            self.sidebar.place(relx=1.0, x=self.menu_offset_x, y=0, relheight=1.0)
             self.after(10, lambda: self.animar_menu(target_x))
-        elif self.menu_x < target_x:
-            self.menu_x = min(self.menu_x + step, target_x)
-            self.sidebar.place(x=self.menu_x, y=0)
+        elif self.menu_offset_x < target_x:
+            self.menu_offset_x = min(self.menu_offset_x + step, target_x)
+            self.sidebar.place(relx=1.0, x=self.menu_offset_x, y=0, relheight=1.0)
             self.after(10, lambda: self.animar_menu(target_x))
 
-    # --- MÉTODOS DE AUDIO ---
     def reproducir_sonido(self):
-        sonido_elegido = self.sonido_var.get()
-        self.audio_engine.reproducir(sonido_elegido)
+        self.audio_engine.reproducir(self.sonido_var.get())
 
     def detener_sonido(self):
         self.audio_engine.detener()
 
     def cambiar_sonido_vivo(self):
-        if self.timer_running and self.selector_modo.get() == "Enfoque":
-            self.audio_engine.detener()
-            self.audio_engine.reproducir(self.sonido_var.get())
-
-    # --- MÉTODOS DEL TEMPORIZADOR ---
-    def cambiar_modo(self, valor):
-        self.reset_timer()
+        if self.timer_running and self.estado_actual == "Enfoque":
+            self.detener_sonido()
+            self.reproducir_sonido()
 
     def toggle_timer(self):
         if self.timer_running:
             self.timer_running = False
-            self.boton_start.configure(text="Continuar")
+            self.boton_start.configure(text="▷ Continuar")
             self.halo.stop_breathing()
             self.detener_sonido() 
-            
-            # Desbloquear y mostrar widget
             self.notification_engine.gestionar_notificaciones(False)
-            self.mostrar_alerta("🔔 Notificaciones Permitidas", config.COLOR_FRAME)
-            
             if self.timer_id:
                 self.after_cancel(self.timer_id)
         else:
             self.timer_running = True
-            self.boton_start.configure(text="Pausar")
+            self.boton_start.configure(text="|| Pausar")
             self.halo.start_breathing()
-            
-            if self.selector_modo.get() == "Enfoque":
+            if self.estado_actual == "Enfoque":
                 self.reproducir_sonido()
-                # Bloquear y mostrar widget
                 self.notification_engine.gestionar_notificaciones(True)
-                self.mostrar_alerta("🔕 Notificaciones Bloqueadas", config.COLOR_PRIMARY)
             else:
                 self.notification_engine.gestionar_notificaciones(False)
-                
             self.contar()
 
     def contar(self):
@@ -351,113 +360,90 @@ class ZenFocusApp(ctk.CTk):
             self.time_left -= 1
             self.actualizar_reloj()
             self.timer_id = self.after(1000, self.contar)
-        elif self.time_left == 0:
-            self.timer_running = False
-            self.boton_start.configure(text="Iniciar")
-            self.halo.stop_breathing()
-            self.detener_sonido() 
-            
-            # Desbloquear al terminar y avisar al usuario
-            self.notification_engine.gestionar_notificaciones(False)
-            self.mostrar_alerta("✅ Sesión Finalizada", config.COLOR_ACCENT)
-            
-            self.time_left = config.POMODORO_TIME if self.selector_modo.get() == "Enfoque" else config.SHORT_BREAK
-            self.total_time = self.time_left
+        elif self.time_left <= 0:
+            self.detener_sonido()
+            if self.estado_actual == "Enfoque":
+                self.estado_actual = "Descanso"
+                self.time_left = config.SHORT_BREAK
+                self.total_time = config.SHORT_BREAK
+                self.notification_engine.gestionar_notificaciones(False)
+                if self.modo_vista != "Flotante": self.mostrar_alerta("☕ ¡Tiempo de descanso!", config.COLOR_ACCENT)
+            else:
+                self.estado_actual = "Enfoque"
+                self.time_left = config.POMODORO_TIME
+                self.total_time = config.POMODORO_TIME
+                self.ciclo_actual += 1
+                if self.ciclo_actual > self.ciclos_totales:
+                    self.timer_running = False
+                    self.halo.stop_breathing()
+                    self.boton_start.configure(text="▷ Comenzar Ciclo")
+                    self.ciclo_actual = 1
+                    if self.modo_vista != "Flotante": self.mostrar_alerta("🎉 ¡Sesión completada!", config.COLOR_PRIMARY)
+                    self.actualizar_etiquetas_estado()
+                    self.actualizar_reloj()
+                    return
+                else:
+                    if self.modo_vista != "Flotante": self.mostrar_alerta("🍅 ¡De vuelta al enfoque!", config.COLOR_PRIMARY)
+                    if self.timer_running:
+                        self.reproducir_sonido()
+                        self.notification_engine.gestionar_notificaciones(True)
+
+            self.actualizar_etiquetas_estado()
             self.actualizar_reloj()
+            if self.timer_running:
+                self.timer_id = self.after(1000, self.contar)
 
     def reset_timer(self):
         self.timer_running = False
         self.halo.stop_breathing()
         self.detener_sonido() 
-        
-        # Desbloquear si se reinicia a la fuerza
         self.notification_engine.gestionar_notificaciones(False)
-        
         if self.timer_id:
             self.after_cancel(self.timer_id)
         
-        modo_actual = self.selector_modo.get()
-        
-        if modo_actual == "Enfoque":
-            self.time_left = config.POMODORO_TIME
-            nuevo_color = config.COLOR_PRIMARY
-            hover_color = config.COLOR_PRIMARY_HOVER
-            self.selector_modo.configure(selected_color=nuevo_color, selected_hover_color=hover_color)
-        else:
-            self.time_left = config.SHORT_BREAK
-            nuevo_color = config.COLOR_ACCENT
-            hover_color = config.COLOR_ACCENT_HOVER
-            self.selector_modo.configure(selected_color=nuevo_color, selected_hover_color=hover_color)
-            
-        self.total_time = self.time_left
-        self.boton_start.configure(text="Iniciar", fg_color=nuevo_color, hover_color=hover_color)
-        self.boton_reset.configure(border_color=nuevo_color, text_color=nuevo_color)
-        
-        self.halo.set_color(nuevo_color)
+        self.estado_actual = "Enfoque"
+        self.ciclo_actual = 1
+        self.time_left = config.POMODORO_TIME
+        self.total_time = config.POMODORO_TIME
+        self.boton_start.configure(text="▷ Comenzar Ciclo")
+        self.actualizar_etiquetas_estado()
         self.actualizar_reloj()
 
     def formato_tiempo(self, segundos):
-        m = math.floor(segundos / 60)
-        s = segundos % 60
-        return f"{m:02d}:{s:02d}"
+        return f"{math.floor(segundos / 60):02d}:{segundos % 60:02d}"
 
     def actualizar_reloj(self):
-        progreso = self.time_left / self.total_time if self.total_time > 0 else 0
-        texto = self.formato_tiempo(self.time_left)
-        self.halo.draw(progreso, texto)
+        self.halo.draw(self.time_left / self.total_time if self.total_time > 0 else 0, self.formato_tiempo(self.time_left))
 
-    # --- SISTEMA DE NOTIFICACIONES EMERGENTES (TOAST) ---
     def mostrar_alerta(self, mensaje, color_fondo):
-        """Crea el widget y lo prepara fuera de la pantalla para animarlo."""
-        # Si ya hay una alerta, la destruimos antes de crear la nueva
-        if hasattr(self, "toast_actual") and self.toast_actual.winfo_exists():
-            self.toast_actual.destroy()
-
+        if hasattr(self, "toast_actual") and self.toast_actual.winfo_exists(): self.toast_actual.destroy()
         self.toast_actual = ctk.CTkLabel(
-            self,
-            text=mensaje,
-            fg_color=color_fondo,
-            text_color=config.COLOR_TEXT_MAIN,
-            corner_radius=15,
-            font=("Roboto", 14, "bold"),
-            width=230,
-            height=40
+            self, text=mensaje, fg_color=color_fondo, text_color=config.COLOR_TEXT_MAIN,
+            corner_radius=15, font=("Segoe UI", 14, "bold"), width=230, height=40
         )
-        
-        # Inicia oculto abajo de la ventana (rely = 1.1)
         self.toast_rely = 1.1 
         self.toast_actual.place(relx=0.5, rely=self.toast_rely, anchor="center")
-
-        # Iniciar la animación de subida
         self.animar_entrada_toast()
 
     def animar_entrada_toast(self):
-        """Desliza el widget hacia arriba suavemente."""
         if hasattr(self, "toast_actual") and self.toast_actual.winfo_exists():
-            target_y = 0.92  # Posición final en pantalla
-            
-            if self.toast_rely > target_y:
-                self.toast_rely -= 0.015  # Velocidad de la animación
+            if self.toast_rely > 0.92:
+                self.toast_rely -= 0.015  
                 self.toast_actual.place(relx=0.5, rely=self.toast_rely, anchor="center")
                 self.after(15, self.animar_entrada_toast)
             else:
-                # Cuando llega a su posición, espera 3 segundos y baja
                 self.after(3000, self.animar_salida_toast)
 
     def animar_salida_toast(self):
-        """Desliza el widget de regreso hacia abajo y lo destruye."""
         if hasattr(self, "toast_actual") and self.toast_actual.winfo_exists():
-            fuera_y = 1.1  # Posición fuera de pantalla
-            
-            if self.toast_rely < fuera_y:
-                self.toast_rely += 0.015  # Velocidad de la animación
+            if self.toast_rely < 1.1:
+                self.toast_rely += 0.015  
                 self.toast_actual.place(relx=0.5, rely=self.toast_rely, anchor="center")
                 self.after(15, self.animar_salida_toast)
             else:
-                # Una vez oculto, lo eliminamos de la memoria
                 self.toast_actual.destroy()
 
 if __name__ == "__main__":
-    ctk.set_appearance_mode("Dark") # Obligamos el modo oscuro formal
+    ctk.set_appearance_mode("Dark")
     app = ZenFocusApp()
     app.mainloop()
