@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from ui.components.breathing_halo import BreathingHalo
 from logic.audio_engine import AudioEngine
+from logic.notification_engine import NotificationEngine
 
 class ZenFocusApp(ctk.CTk):
     def __init__(self):
@@ -16,6 +17,7 @@ class ZenFocusApp(ctk.CTk):
 
         # --- Inicializar el Motor de Audio ---
         self.audio_engine = AudioEngine()
+        self.notification_engine = NotificationEngine()
 
         # --- Configuración de la Ventana ---
         self.title("ZenFocus")
@@ -317,14 +319,26 @@ class ZenFocusApp(ctk.CTk):
             self.boton_start.configure(text="Continuar")
             self.halo.stop_breathing()
             self.detener_sonido() 
+            
+            # Desbloquear y mostrar widget
+            self.notification_engine.gestionar_notificaciones(False)
+            self.mostrar_alerta("🔔 Notificaciones Permitidas", config.COLOR_FRAME)
+            
             if self.timer_id:
                 self.after_cancel(self.timer_id)
         else:
             self.timer_running = True
             self.boton_start.configure(text="Pausar")
             self.halo.start_breathing()
+            
             if self.selector_modo.get() == "Enfoque":
                 self.reproducir_sonido()
+                # Bloquear y mostrar widget
+                self.notification_engine.gestionar_notificaciones(True)
+                self.mostrar_alerta("🔕 Notificaciones Bloqueadas", config.COLOR_PRIMARY)
+            else:
+                self.notification_engine.gestionar_notificaciones(False)
+                
             self.contar()
 
     def contar(self):
@@ -338,6 +352,10 @@ class ZenFocusApp(ctk.CTk):
             self.halo.stop_breathing()
             self.detener_sonido() 
             
+            # Desbloquear al terminar y avisar al usuario
+            self.notification_engine.gestionar_notificaciones(False)
+            self.mostrar_alerta("✅ Sesión Finalizada", config.COLOR_ACCENT)
+            
             self.time_left = config.POMODORO_TIME if self.selector_modo.get() == "Enfoque" else config.SHORT_BREAK
             self.total_time = self.time_left
             self.actualizar_reloj()
@@ -346,6 +364,9 @@ class ZenFocusApp(ctk.CTk):
         self.timer_running = False
         self.halo.stop_breathing()
         self.detener_sonido() 
+        
+        # Desbloquear si se reinicia a la fuerza
+        self.notification_engine.gestionar_notificaciones(False)
         
         if self.timer_id:
             self.after_cancel(self.timer_id)
@@ -379,6 +400,57 @@ class ZenFocusApp(ctk.CTk):
         progreso = self.time_left / self.total_time if self.total_time > 0 else 0
         texto = self.formato_tiempo(self.time_left)
         self.halo.draw(progreso, texto)
+
+    # --- SISTEMA DE NOTIFICACIONES EMERGENTES (TOAST) ---
+    def mostrar_alerta(self, mensaje, color_fondo):
+        """Crea el widget y lo prepara fuera de la pantalla para animarlo."""
+        # Si ya hay una alerta, la destruimos antes de crear la nueva
+        if hasattr(self, "toast_actual") and self.toast_actual.winfo_exists():
+            self.toast_actual.destroy()
+
+        self.toast_actual = ctk.CTkLabel(
+            self,
+            text=mensaje,
+            fg_color=color_fondo,
+            text_color=config.COLOR_TEXT_MAIN,
+            corner_radius=15,
+            font=("Roboto", 14, "bold"),
+            width=230,
+            height=40
+        )
+        
+        # Inicia oculto abajo de la ventana (rely = 1.1)
+        self.toast_rely = 1.1 
+        self.toast_actual.place(relx=0.5, rely=self.toast_rely, anchor="center")
+
+        # Iniciar la animación de subida
+        self.animar_entrada_toast()
+
+    def animar_entrada_toast(self):
+        """Desliza el widget hacia arriba suavemente."""
+        if hasattr(self, "toast_actual") and self.toast_actual.winfo_exists():
+            target_y = 0.92  # Posición final en pantalla
+            
+            if self.toast_rely > target_y:
+                self.toast_rely -= 0.015  # Velocidad de la animación
+                self.toast_actual.place(relx=0.5, rely=self.toast_rely, anchor="center")
+                self.after(15, self.animar_entrada_toast)
+            else:
+                # Cuando llega a su posición, espera 3 segundos y baja
+                self.after(3000, self.animar_salida_toast)
+
+    def animar_salida_toast(self):
+        """Desliza el widget de regreso hacia abajo y lo destruye."""
+        if hasattr(self, "toast_actual") and self.toast_actual.winfo_exists():
+            fuera_y = 1.1  # Posición fuera de pantalla
+            
+            if self.toast_rely < fuera_y:
+                self.toast_rely += 0.015  # Velocidad de la animación
+                self.toast_actual.place(relx=0.5, rely=self.toast_rely, anchor="center")
+                self.after(15, self.animar_salida_toast)
+            else:
+                # Una vez oculto, lo eliminamos de la memoria
+                self.toast_actual.destroy()
 
 if __name__ == "__main__":
     ctk.set_appearance_mode("Dark") # Obligamos el modo oscuro formal
