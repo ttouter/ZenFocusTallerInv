@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from ui.components.breathing_halo import BreathingHalo
 from logic.audio_engine import AudioEngine
 from logic.notification_engine import NotificationEngine
+from ui.components.mixer_panel import MixerPanel
 
 class ZenFocusApp(ctk.CTk):
     def __init__(self):
@@ -46,6 +47,10 @@ class ZenFocusApp(ctk.CTk):
         
         # Inicialización visual
         self.actualizar_reloj()
+
+        ctk.CTkFrame(self.scroll_sonidos, height=2, fg_color=config.COLOR_FRAME).pack(fill="x", pady=(15,10))
+        self.mixer_panel = MixerPanel(self.scroll_sonidos, self.audio_engine)
+        self.mixer_panel.pack(fill="x", padx=5, pady=5)
 
     def crear_widgets(self):
         # 1. Título
