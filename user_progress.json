@@ -1,7 +1,12 @@
 {
     "level": 1,
-    "current_xp": 10,
-    "total_focus_minutes": 1,
-    "sessions_completed": 1,
-    "achievements": []
+    "current_xp": 70,
+    "total_focus_minutes": 7,
+    "sessions_completed": 7,
+    "achievements": [],
+    "streak_count": 1,
+    "last_active_date": "2026-05-24",
+    "active_days": [
+        "2026-05-24"
+    ]
 }

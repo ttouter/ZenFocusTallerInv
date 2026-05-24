@@ -64,7 +64,8 @@ class GamificationEngine:
         # Guardar el progreso automáticamente
         self.save_progress()
         
-        return xp_gained, leveled_up
+        # ¡AQUÍ ESTÁ LA CORRECCIÓN! Devolvemos 3 valores en lugar de 2
+        return xp_gained, leveled_up, racha_actualizada
 
     def _check_level_up(self):
         """
