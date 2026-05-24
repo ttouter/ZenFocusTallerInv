@@ -6,6 +6,7 @@ from ui.components.breathing_halo import BreathingHalo
 from logic.audio_engine import AudioEngine
 from logic.notification_engine import NotificationEngine
 from ui.components.mixer_panel import MixerPanel
+from logic.gamification import GamificationEngine
 
 class ZenFocusApp(ctk.CTk):
     def __init__(self):
@@ -14,6 +15,7 @@ class ZenFocusApp(ctk.CTk):
         # --- Inicializar Motores ---
         self.audio_engine = AudioEngine()
         self.notification_engine = NotificationEngine()
+        self.gamification = GamificationEngine()
 
         # --- Configuración de la Ventana ---
         self.title("ZenFocus")
@@ -369,12 +371,28 @@ class ZenFocusApp(ctk.CTk):
             self.timer_id = self.after(1000, self.contar)
         elif self.time_left <= 0:
             self.detener_sonido()
+            
             if self.estado_actual == "Enfoque":
+                # --- AQUÍ VA EL PASO 2: GAMIFICACIÓN ---
+                # Calculamos los minutos basados en el tiempo total del ciclo actual
+                minutos_sesion = int(self.total_time / 60)
+                xp_ganada, subio_nivel = self.gamification.add_focus_session(minutos_sesion)
+                
+                # Usamos tu sistema de alertas integrado para mostrar el progreso
+                if subio_nivel:
+                    nivel_actual = self.gamification.stats['level']
+                    if self.modo_vista != "Flotante": 
+                        self.mostrar_alerta(f"¡Subiste al nivel {nivel_actual}! 🎉", config.COLOR_PRIMARY)
+                else:
+                    if self.modo_vista != "Flotante": 
+                        self.mostrar_alerta(f"☕ ¡Descanso! (+{xp_ganada} XP)", config.COLOR_ACCENT)
+                # ---------------------------------------
+
                 self.estado_actual = "Descanso"
                 self.time_left = config.SHORT_BREAK
                 self.total_time = config.SHORT_BREAK
                 self.notification_engine.gestionar_notificaciones(False)
-                if self.modo_vista != "Flotante": self.mostrar_alerta("☕ ¡Tiempo de descanso!", config.COLOR_ACCENT)
+                
             else:
                 self.estado_actual = "Enfoque"
                 self.time_left = config.POMODORO_TIME
