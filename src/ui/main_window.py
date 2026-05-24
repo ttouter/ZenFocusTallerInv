@@ -1,6 +1,7 @@
 import customtkinter as ctk
 import config
 import math
+from datetime import date, timedelta  # Necesario para el calendario de rachas
 
 from ui.components.breathing_halo import BreathingHalo
 from logic.audio_engine import AudioEngine
@@ -36,6 +37,7 @@ class ZenFocusApp(ctk.CTk):
         self.ciclo_actual = 1
         self.ciclos_totales = 4
         self.modo_vista = "Normal" 
+        self.viendo_racha = False # Controla si estamos viendo el pomodoro o la racha
         
         # --- Variables del Menú (Responsivo) ---
         self.menu_abierto = False 
@@ -66,6 +68,7 @@ class ZenFocusApp(ctk.CTk):
         )
         self.label_titulo.grid(row=0, column=0, pady=(20, 0))
 
+        # Botón de Ajustes
         self.btn_abrir_menu = ctk.CTkButton(
             self, text="⚙️ Ajustes", width=90, height=30, corner_radius=15,
             fg_color=config.COLOR_FRAME, hover_color=config.COLOR_TRACK, text_color=config.COLOR_TEXT_MAIN,
@@ -73,6 +76,16 @@ class ZenFocusApp(ctk.CTk):
         )
         self.btn_abrir_menu.place(relx=0.95, y=20, anchor="ne")
 
+        # Botón para cambiar a la vista de Racha
+        self.btn_toggle_racha = ctk.CTkButton(
+            self, text="🔥 Racha", width=90, height=30, corner_radius=15,
+            fg_color=config.COLOR_FRAME, hover_color=config.COLOR_TRACK, 
+            text_color=config.COLOR_PRIMARY, font=("Segoe UI", 12, "bold"), 
+            command=self.toggle_vista_racha
+        )
+        self.btn_toggle_racha.place(relx=0.05, y=20, anchor="nw")
+
+        # --- WIDGETS DEL POMODORO ---
         self.frame_info = ctk.CTkFrame(self, fg_color=config.COLOR_FRAME, corner_radius=10)
         self.frame_info.grid(row=1, column=0, pady=10, padx=20, sticky="ew")
         
@@ -103,6 +116,91 @@ class ZenFocusApp(ctk.CTk):
             border_width=1, border_color=config.COLOR_TEXT_MUTED, width=150, height=40, corner_radius=8, font=("Segoe UI", 14)
         )
         self.boton_reset.pack(side="left", padx=10)
+
+        # --- FRAME DE RACHA (Oculto por defecto) ---
+        self.frame_racha = ctk.CTkFrame(self, fg_color="transparent")
+
+    # --- INTERCAMBIO DE VISTAS ---
+    def toggle_vista_racha(self):
+        if not self.viendo_racha:
+            # 1. Ocultar widgets del Pomodoro
+            self.frame_info.grid_remove()
+            self.halo.grid_remove()
+            self.frame_botones.grid_remove()
+            
+            # 2. Construir y mostrar Frame de Racha
+            self.construir_contenido_racha()
+            self.frame_racha.grid(row=1, column=0, rowspan=4, sticky="nsew", padx=20, pady=40)
+            
+            # 3. Actualizar estado y botón
+            self.btn_toggle_racha.configure(text="🍅 Reloj", text_color=config.COLOR_TEXT_MAIN)
+            self.viendo_racha = True
+        else:
+            # 1. Ocultar Frame de Racha
+            self.frame_racha.grid_remove()
+            
+            # 2. Mostrar widgets del Pomodoro
+            self.frame_info.grid()
+            self.halo.grid(row=3, column=0, pady=20)
+            self.frame_botones.grid()
+            
+            # 3. Actualizar estado y botón
+            self.btn_toggle_racha.configure(text="🔥 Racha", text_color=config.COLOR_PRIMARY)
+            self.viendo_racha = False
+
+    def construir_contenido_racha(self):
+        # Limpiar contenido anterior
+        for widget in self.frame_racha.winfo_children():
+            widget.destroy()
+
+        stats = self.gamification.get_stats()
+        racha_actual = stats.get("streak_count", 0)
+        
+        ctk.CTkLabel(
+            self.frame_racha, text="Racha de Concentración", 
+            font=("Segoe UI Variable", 22, "bold"), text_color=config.COLOR_TEXT_MAIN
+        ).pack(pady=(20, 10))
+        
+        # --- Contador ---
+        frame_contador = ctk.CTkFrame(self.frame_racha, fg_color="transparent")
+        frame_contador.pack(pady=20)
+        
+        ctk.CTkLabel(frame_contador, text="🔥", font=("Segoe UI", 55)).pack(side="left", padx=(0, 10))
+        ctk.CTkLabel(frame_contador, text=str(racha_actual), font=("Segoe UI", 65, "bold"), text_color=config.COLOR_PRIMARY).pack(side="left")
+        
+        # Corregido de align="bottom" a anchor="s"
+        ctk.CTkLabel(frame_contador, text=" días", font=("Segoe UI", 20), text_color=config.COLOR_TEXT_MUTED).pack(side="left", anchor="s", pady=(35, 0))
+        
+        ctk.CTkFrame(self.frame_racha, height=2, fg_color=config.COLOR_FRAME).pack(fill="x", padx=40, pady=30)
+        
+        # --- Mini Calendario Semanal ---
+        ctk.CTkLabel(
+            self.frame_racha, text="Actividad de los últimos 7 días:", 
+            font=("Segoe UI", 15), text_color=config.COLOR_TEXT_MAIN
+        ).pack(pady=(0, 15))
+        
+        frame_semana = ctk.CTkFrame(self.frame_racha, fg_color="transparent")
+        frame_semana.pack(pady=5)
+        
+        today = date.today()
+        active_days = stats.get("active_days", [])
+        dias_semana = ["L", "M", "X", "J", "V", "S", "D"]
+        
+        for i in range(6, -1, -1):
+            dia_fecha = today - timedelta(days=i)
+            dia_str = dia_fecha.isoformat()
+            dia_nombre = dias_semana[dia_fecha.weekday()]
+            
+            dia_activo = dia_str in active_days
+            color_fondo = config.COLOR_PRIMARY if dia_activo else config.COLOR_TRACK
+            color_texto = config.COLOR_BACKGROUND if dia_activo else config.COLOR_TEXT_MUTED
+            
+            frame_dia = ctk.CTkFrame(frame_semana, width=40, height=40, corner_radius=20, fg_color=color_fondo)
+            frame_dia.pack(side="left", padx=4)
+            frame_dia.pack_propagate(False) 
+            
+            lbl_dia = ctk.CTkLabel(frame_dia, text=dia_nombre, font=("Segoe UI", 14, "bold"), text_color=color_texto)
+            lbl_dia.place(relx=0.5, rely=0.5, anchor="center")
 
     def actualizar_etiquetas_estado(self):
         if self.estado_actual == "Enfoque":
@@ -177,7 +275,7 @@ class ZenFocusApp(ctk.CTk):
             )
             rb.pack(pady=10, padx=5, anchor="w")
 
-        # --- PESTAÑA: TIEMPOS (SISTEMA DUAL) ---
+        # --- PESTAÑA: TIEMPOS ---
         tab_pomo = self.tabview.tab("⏱️ Tiempos")
         ctk.CTkLabel(tab_pomo, text="Modo de Temporizador:", font=("Segoe UI", 13), text_color=config.COLOR_TEXT_MAIN).pack(pady=(10, 5))
         
@@ -240,23 +338,31 @@ class ZenFocusApp(ctk.CTk):
         self.attributes("-fullscreen", False)
         self.attributes("-topmost", False)
         self.resizable(True, True) 
+        
+        # Volver al pomodoro automáticamente si entra a modo flotante mirando la racha
+        if modo == "Flotante" and self.viendo_racha:
+            self.toggle_vista_racha()
 
         if modo == "Normal":
             self.geometry("450x650")
             self.resizable(False, False)
             self.label_titulo.grid()
             self.btn_abrir_menu.place(relx=0.95, y=20, anchor="ne")
-            self.frame_info.grid()
-            self.frame_botones.grid()
-            self.halo.grid(row=3, column=0, pady=20, rowspan=1)
+            self.btn_toggle_racha.place(relx=0.05, y=20, anchor="nw") 
+            if not self.viendo_racha:
+                self.frame_info.grid()
+                self.frame_botones.grid()
+                self.halo.grid(row=3, column=0, pady=20, rowspan=1)
             
         elif modo == "Completa":
             self.state('zoomed') 
             self.label_titulo.grid()
             self.btn_abrir_menu.place(relx=0.95, y=20, anchor="ne")
-            self.frame_info.grid()
-            self.frame_botones.grid()
-            self.halo.grid(row=3, column=0, pady=20, rowspan=1)
+            self.btn_toggle_racha.place(relx=0.05, y=20, anchor="nw")
+            if not self.viendo_racha:
+                self.frame_info.grid()
+                self.frame_botones.grid()
+                self.halo.grid(row=3, column=0, pady=20, rowspan=1)
             self.mostrar_alerta("💡 Presiona 'Esc' para salir", config.COLOR_FRAME)
             
         elif modo == "Flotante":
@@ -266,6 +372,7 @@ class ZenFocusApp(ctk.CTk):
             self.resizable(False, False)
             self.label_titulo.grid_remove()
             self.btn_abrir_menu.place_forget()
+            self.btn_toggle_racha.place_forget() 
             self.frame_info.grid_remove()
             self.frame_botones.grid_remove()
             if self.menu_abierto:
@@ -313,7 +420,6 @@ class ZenFocusApp(ctk.CTk):
         except ValueError:
             self.mostrar_alerta("❌ Ingresa números válidos", config.COLOR_FRAME)
 
-    # --- ANIMACIÓN RESPONSIVA DEL MENÚ ---
     def toggle_menu(self):
         self.sidebar.lift()
         if self.menu_abierto:
@@ -357,6 +463,11 @@ class ZenFocusApp(ctk.CTk):
             self.timer_running = True
             self.boton_start.configure(text="|| Pausar")
             self.halo.start_breathing()
+            
+            # Volver al pomodoro si le da a iniciar estando en racha
+            if self.viendo_racha:
+                self.toggle_vista_racha()
+                
             if self.estado_actual == "Enfoque":
                 self.reproducir_sonido()
                 self.notification_engine.gestionar_notificaciones(True)
@@ -373,20 +484,25 @@ class ZenFocusApp(ctk.CTk):
             self.detener_sonido()
             
             if self.estado_actual == "Enfoque":
-                # --- AQUÍ VA EL PASO 2: GAMIFICACIÓN ---
-                # Calculamos los minutos basados en el tiempo total del ciclo actual
                 minutos_sesion = int(self.total_time / 60)
-                xp_ganada, subio_nivel = self.gamification.add_focus_session(minutos_sesion)
                 
-                # Usamos tu sistema de alertas integrado para mostrar el progreso
-                if subio_nivel:
-                    nivel_actual = self.gamification.stats['level']
-                    if self.modo_vista != "Flotante": 
+                # Desestructuración con el nuevo parámetro devuelto
+                xp_ganada, subio_nivel, racha_actualizada = self.gamification.add_focus_session(minutos_sesion)
+                
+                # Actualizar la vista de la racha en vivo si está abierta
+                if self.viendo_racha:
+                    self.construir_contenido_racha()
+                
+                # Notificación selectiva inteligente
+                if self.modo_vista != "Flotante": 
+                    if racha_actualizada:
+                        dias_racha = self.gamification.stats['streak_count']
+                        self.mostrar_alerta(f"🔥 ¡Racha activa: {dias_racha} días!", config.COLOR_PRIMARY)
+                    elif subio_nivel:
+                        nivel_actual = self.gamification.stats['level']
                         self.mostrar_alerta(f"¡Subiste al nivel {nivel_actual}! 🎉", config.COLOR_PRIMARY)
-                else:
-                    if self.modo_vista != "Flotante": 
+                    else:
                         self.mostrar_alerta(f"☕ ¡Descanso! (+{xp_ganada} XP)", config.COLOR_ACCENT)
-                # ---------------------------------------
 
                 self.estado_actual = "Descanso"
                 self.time_left = config.SHORT_BREAK

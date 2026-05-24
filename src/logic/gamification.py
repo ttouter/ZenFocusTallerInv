@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import date, timedelta
 
 class GamificationEngine:
     """
@@ -15,7 +16,10 @@ class GamificationEngine:
             "current_xp": 0,
             "total_focus_minutes": 0,
             "sessions_completed": 0,
-            "achievements": []
+            "achievements": [],
+            "streak_count": 0,          # Días de racha actual
+            "last_active_date": None,   # Última fecha activa
+            "active_days": []           # Lista de fechas activas ('YYYY-MM-DD')
         }
         self.load_progress()
 
@@ -26,11 +30,35 @@ class GamificationEngine:
         self.stats["sessions_completed"] += 1
         self.stats["total_focus_minutes"] += minutes_focused
         
-        # Calcular XP ganada (ejemplo: 10 XP por cada minuto de concentración)
+        # Calcular XP ganada
         xp_gained = int(minutes_focused * 10)
         self.stats["current_xp"] += xp_gained
         
-        # Verificar si el usuario subió de nivel
+        # --- LÓGICA DE RACHAS ---
+        today = date.today().isoformat()
+        racha_actualizada = False
+        
+        # Si hoy no se ha registrado actividad, actualizar racha
+        if today not in self.stats["active_days"]:
+            self.stats["active_days"].append(today)
+            
+            if self.stats["last_active_date"]:
+                last_date = date.fromisoformat(self.stats["last_active_date"])
+                
+                # Si la última actividad fue exactamente ayer, aumentar racha
+                if date.today() - last_date == timedelta(days=1):
+                    self.stats["streak_count"] += 1
+                # Si pasó más de un día, la racha se reinicia a 1
+                elif date.today() - last_date > timedelta(days=1):
+                    self.stats["streak_count"] = 1
+            else:
+                # Primera vez que usa la app
+                self.stats["streak_count"] = 1
+                
+            self.stats["last_active_date"] = today
+            racha_actualizada = True
+        # -------------------------------
+        
         leveled_up = self._check_level_up()
         
         # Guardar el progreso automáticamente
@@ -41,7 +69,6 @@ class GamificationEngine:
     def _check_level_up(self):
         """
         Verifica si la XP actual supera el límite necesario para el siguiente nivel.
-        Retorna True si subió de nivel, False de lo contrario.
         """
         # Fórmula simple: Cada nivel requiere (Nivel actual * 100) XP
         xp_needed_for_next_level = self.stats["level"] * 100
@@ -54,9 +81,7 @@ class GamificationEngine:
         return False
 
     def get_progress_percentage(self):
-        """
-        Devuelve el porcentaje de progreso hacia el siguiente nivel (útil para la UI).
-        """
+        """Devuelve el porcentaje de progreso hacia el siguiente nivel."""
         xp_needed = self.stats["level"] * 100
         return (self.stats["current_xp"] / xp_needed) * 100
 
@@ -78,7 +103,6 @@ class GamificationEngine:
             try:
                 with open(self.save_file, 'r', encoding='utf-8') as f:
                     saved_data = json.load(f)
-                    # Actualizamos solo las claves que existen para evitar errores con versiones viejas
                     for key in self.stats.keys():
                         if key in saved_data:
                             self.stats[key] = saved_data[key]
